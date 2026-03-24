@@ -5,8 +5,10 @@ const LOCAL_DB = {
     "24187": "Migros Karotten"
 };
 
-// We remove TRY_HARDER because it paralyzes weak smartphone CPUs. Standard scanning is much faster.
+// Enable "Try Harder" mode for omnidirectional scanning
+// We can use this safely now because we will limit the camera resolution, preventing CPU overload!
 const hints = new Map();
+hints.set(DecodeHintType.TRY_HARDER, true);
 
 const formats = [
     BarcodeFormat.AZTEC,
@@ -61,12 +63,19 @@ async function startScanner() {
         // We do NOT hide the result card when starting the scanner, so you can see past results!
         statusMsg.textContent = "Looking for barcodes or Aztec codes...";
 
-        const videoInputDevices = await BrowserMultiFormatReader.listVideoInputDevices();
-        // Typically the back camera on mobile or default on desktop
-        const backCamera = videoInputDevices.find(device => device.label.toLowerCase().includes('back'));
-        const selectedDeviceId = backCamera ? backCamera.deviceId : (videoInputDevices.length > 0 ? videoInputDevices[0].deviceId : undefined);
+        // Force the camera into a low-resolution state! 
+        // A 480p image processes exponentially faster than 4K/1080p, completely eliminating iPhone lag
+        // while allowing ZXing to run the high-CPU 'TRY_HARDER' rotations.
+        const constraints = {
+            audio: false,
+            video: {
+                facingMode: "environment",
+                width: { ideal: 640 },
+                height: { ideal: 480 }
+            }
+        };
 
-        codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, (result, err) => {
+        codeReader.decodeFromConstraints(constraints, videoElement, (result, err) => {
             if (result) {
                 const text = result.getText();
                 const now = Date.now();
