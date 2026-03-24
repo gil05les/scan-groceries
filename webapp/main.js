@@ -1,7 +1,7 @@
 import { BrowserMultiFormatReader } from '@zxing/browser';
 
 const LOCAL_DB = {
-    "24187": "Karotten"
+    "24187": "Migros Karotten"
 };
 
 const codeReader = new BrowserMultiFormatReader();
@@ -64,14 +64,14 @@ function stopScanner() {
 async function handleResult(barcode) {
     statusMsg.textContent = `Scanned: ${barcode}`;
     stopScanner();
-    
+
     // Check Local DB (e.g., Migros weighing scales)
     if (barcode.length === 13 && barcode.startsWith("2")) {
         const itemCode = barcode.substring(2, 7);
         const valStr = barcode.substring(7, 12);
         const price = (parseInt(valStr, 10) / 100).toFixed(2);
         const name = LOCAL_DB[itemCode] || `Local Item ${itemCode}`;
-        
+
         displayLocalResult(name, price);
         return;
     }
@@ -81,7 +81,7 @@ async function handleResult(barcode) {
     try {
         const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}`);
         if (!res.ok) throw new Error("Product API rate limited or unavailable.");
-        
+
         const data = await res.json();
         if (data.status === 1 && data.product) {
             displayApiResult(data.product);
@@ -99,11 +99,11 @@ function displayLocalResult(name, price) {
     imgEl.src = "";
     imgEl.style.display = 'none';
     loaderEl.style.display = 'none';
-    
+
     nutriscoreEl.textContent = "N/A";
     ecoscoreEl.textContent = "N/A";
     quantityEl.textContent = `${price} CHF`;
-    
+
     detailsListEl.innerHTML = `<li><strong>Determined Price:</strong> ${price} CHF</li>`;
     resultCard.classList.remove('hidden');
 }
@@ -111,7 +111,7 @@ function displayLocalResult(name, price) {
 function displayApiResult(product) {
     brandEl.textContent = product.brands || "Unknown Brand";
     nameEl.textContent = product.product_name || "Unknown Product";
-    
+
     nutriscoreEl.textContent = `Nutri-Score: ${(product.nutriscore_grade || 'N/A').toUpperCase()}`;
     ecoscoreEl.textContent = `Eco-Score: ${(product.ecoscore_grade || 'N/A').toUpperCase()}`;
     quantityEl.textContent = product.quantity || "N/A Qty";
