@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fridge Scanner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Fridge Scanner</h1>
+            <p>Point your camera at a barcode or Migros Aztec code to instantly identify groceries.</p>
+        </header>
+
+        <div class="scanner-section">
+            <div id="video-wrapper">
+                <video id="video-preview" autoplay playsinline muted></video>
+                <div class="scanning-overlay">
+                    <div class="laser"></div>
+                </div>
+            </div>
+            
+            <button id="scan-btn" class="glow-on-hover">Start Scanner</button>
+            <p id="status-msg" class="status-message"></p>
+        </div>
+
+        <div id="result-card" class="glass-card hidden">
+            <div class="product-visual">
+                <img id="product-img" src="" alt="Product Image">
+                <div class="loader" id="img-loader"></div>
+            </div>
+            <div class="product-info">
+                <p class="brand" id="brand">Loading...</p>
+                <h2 id="product-name">Scanning...</h2>
+                <div class="badges">
+                    <span class="badge nutriscore" id="nutriscore">N/A</span>
+                    <span class="badge ecoscore" id="ecoscore">N/A</span>
+                    <span class="badge quantity" id="quantity">N/A</span>
+                </div>
+                <ul id="product-details" class="details-list"></ul>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="./main.js"></script>
+</body>
+</html>

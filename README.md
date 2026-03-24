@@ -1,37 +1,41 @@
-# Fridge Scanner
+# Fridge Scanner (Web App & Python)
 
-A Python-based barcode and receipt scanner that uses a webcam or Apple Continuity Camera to instantly identify groceries. 
+A dual-architecture barcode and receipt scanner that instantly identifies groceries. It handles both standard 1D commercial barcodes (via OpenFoodFacts) and 2D local store-generated Aztec codes (like those from Migros or Coop scales).
 
-It handles both standard 1D commercial barcodes (via OpenFoodFacts) and 2D local store-generated Aztec codes (like those from Migros or Coop scales).
+## 1. The Web App (Live on GitHub Pages)
+A lightning-fast, zero-backend, pure JavaScript web application utilizing a beautiful Glassmorphism UI. It runs entirely in your browser using `@zxing/browser` for instant native camera scanning.
 
-## Prerequisites
+### How to run locally:
+```bash
+cd webapp
+npm install
+npm run dev
+```
 
-### 1. System Dependencies (macOS/Linux)
-The `pyzbar` library requires the underlying ZBar C++ library:
+### GitHub Pages Setup:
+This repository is configured to **automatically** deploy the web app to GitHub Pages whenever you push to `main` via GitHub Actions limitlessly!
+
+**To enable the live deployment on GitHub:**
+1. Go to your repository **Settings** on GitHub.
+2. Click on **Pages** in the left sidebar.
+3. Under **Build and deployment**, change the **Source** dropdown to **GitHub Actions**.
+
+Once GitHub finishes its first automated build (usually within 60 seconds), the web app will be fully public and accessible at: 
+**`https://<your-username>.github.io/scan-groceries/`**
+
+## 2. The Python Backend (For local development)
+The original Python script allows for desktop execution of the identical scanning engine using OpenCV.
+
+### Installation:
 ```bash
 # macOS
 brew install zbar
 
-# Ubuntu/Debian
-sudo apt-get install libzbar0
+# Python Dependencies
+python3 -m pip install opencv-python pyzbar zxing-cpp openfoodfacts requests --break-system-packages
 ```
 
-### 2. Python Dependencies
-Install all required Python libraries via `pip`:
-```bash
-python3 -m pip install opencv-python pyzbar zxing-cpp openfoodfacts requests
-```
-*(If using Homebrew Python outside a virtual environment on macOS, append `--break-system-packages`)*
-
-## Usage
-Simply run the script:
+### Usage:
 ```bash
 python3 scan.py
 ```
-Hold a commercial barcode or store-generated Aztec code up to the camera. The script will automatically decode the code, look up the item, and draw a bounding box around it.
-
-*(Press `Q` in the scanner window to exit)*
-
-## Features
-- **Instant Lookup:** Commercial barcodes are automatically cached so looking up the same item repeatedly doesn't exhaust the API limits.
-- **Local Database Support:** Store generated codes (starting with `2`) from self-weighing scales are automatically extracted and checked against an internal local database.
