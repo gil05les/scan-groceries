@@ -21,6 +21,8 @@ const quantityEl = document.getElementById('quantity');
 const detailsListEl = document.getElementById('product-details');
 
 let isScanning = false;
+let lastScannedCode = "";
+let lastScannedTime = 0;
 
 scanBtn.addEventListener('click', async () => {
     if (isScanning) {
@@ -35,7 +37,7 @@ async function startScanner() {
         isScanning = true;
         scanBtn.textContent = "Stop Scanner";
         videoWrapper.classList.add('active');
-        resultCard.classList.add('hidden');
+        // We do NOT hide the result card when starting the scanner, so you can see past results!
         statusMsg.textContent = "Looking for barcodes or Aztec codes...";
 
         const videoInputDevices = await BrowserMultiFormatReader.listVideoInputDevices();
@@ -44,7 +46,14 @@ async function startScanner() {
 
         codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, (result, err) => {
             if (result) {
-                handleResult(result.getText());
+                const text = result.getText();
+                const now = Date.now();
+                // Prevent API spam: only scan if it's a new code OR 3 seconds have passed
+                if (text !== lastScannedCode || (now - lastScannedTime) > 3000) {
+                    lastScannedCode = text;
+                    lastScannedTime = now;
+                    handleResult(text);
+                }
             }
         });
     } catch (err) {
@@ -63,7 +72,7 @@ function stopScanner() {
 
 async function handleResult(barcode) {
     statusMsg.textContent = `Scanned: ${barcode}`;
-    stopScanner();
+    // Notice: We removed stopScanner() here! The camera will stay on seamlessly.
 
     // Check Local DB (e.g., Migros weighing scales)
     if (barcode.length === 13 && barcode.startsWith("2")) {
