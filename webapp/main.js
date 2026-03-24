@@ -1,10 +1,28 @@
 import { BrowserMultiFormatReader } from '@zxing/browser';
+import { DecodeHintType, BarcodeFormat } from '@zxing/library';
 
 const LOCAL_DB = {
     "24187": "Migros Karotten"
 };
 
-const codeReader = new BrowserMultiFormatReader();
+// Enable "Try Harder" mode for omnidirectional scanning and smaller barcodes
+const hints = new Map();
+hints.set(DecodeHintType.TRY_HARDER, true);
+
+const formats = [
+    BarcodeFormat.AZTEC,
+    BarcodeFormat.EAN_13,
+    BarcodeFormat.EAN_8,
+    BarcodeFormat.QR_CODE,
+    BarcodeFormat.DATA_MATRIX,
+    BarcodeFormat.UPC_A,
+    BarcodeFormat.UPC_E,
+    BarcodeFormat.CODE_128,
+    BarcodeFormat.CODE_39
+];
+hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
+
+const codeReader = new BrowserMultiFormatReader(hints);
 const scanBtn = document.getElementById('scan-btn');
 const videoWrapper = document.getElementById('video-wrapper');
 const videoElement = document.getElementById('video-preview');
