@@ -1,31 +1,8 @@
-import { BrowserMultiFormatReader } from '@zxing/browser';
-import { DecodeHintType, BarcodeFormat } from '@zxing/library';
+import { readBarcodesFromImageData } from 'zxing-wasm';
 
 const LOCAL_DB = {
     "24187": "Migros Karotten"
 };
-
-// Enable "Try Harder" mode for omnidirectional scanning
-// We can use this safely now because we will limit the camera resolution, preventing CPU overload!
-const hints = new Map();
-hints.set(DecodeHintType.TRY_HARDER, true);
-
-const formats = [
-    BarcodeFormat.AZTEC,
-    BarcodeFormat.EAN_13,
-    BarcodeFormat.EAN_8,
-    BarcodeFormat.QR_CODE,
-    BarcodeFormat.DATA_MATRIX,
-    BarcodeFormat.UPC_A,
-    BarcodeFormat.UPC_E,
-    BarcodeFormat.CODE_128,
-    BarcodeFormat.CODE_39
-];
-hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
-
-const codeReader = new BrowserMultiFormatReader(hints);
-// Speed up how often ZXing pulls a video frame from the camera
-codeReader.timeBetweenDecodingAttempts = 150; 
 
 const scanBtn = document.getElementById('scan-btn');
 const videoWrapper = document.getElementById('video-wrapper');
@@ -45,7 +22,12 @@ const detailsListEl = document.getElementById('product-details');
 let isScanning = false;
 let lastScannedCode = "";
 let lastScannedTime = 0;
-const API_CACHE = {}; // In-memory cache for instant subsequent scans!
+const API_CACHE = {}; 
+
+// Create a fast, hidden canvas for preprocessing frames
+const canvas = document.createElement("canvas");
+const ctx = canvas.getContext("2d", { willReadFrequently: true });
+let stream = null;
 
 scanBtn.addEventListener('click', async () => {
     if (isScanning) {
@@ -60,33 +42,26 @@ async function startScanner() {
         isScanning = true;
         scanBtn.textContent = "Stop Scanner";
         videoWrapper.classList.add('active');
-        // We do NOT hide the result card when starting the scanner, so you can see past results!
-        statusMsg.textContent = "Looking for barcodes or Aztec codes...";
+        statusMsg.textContent = "Booting C++ hardware engine...";
 
-        // Force the camera into a low-resolution state! 
-        // A 480p image processes exponentially faster than 4K/1080p, completely eliminating iPhone lag
-        // while allowing ZXing to run the high-CPU 'TRY_HARDER' rotations.
-        const constraints = {
+        stream = await navigator.mediaDevices.getUserMedia({
             audio: false,
             video: {
                 facingMode: "environment",
                 width: { ideal: 640 },
-                height: { ideal: 480 }
-            }
-        };
-
-        codeReader.decodeFromConstraints(constraints, videoElement, (result, err) => {
-            if (result) {
-                const text = result.getText();
-                const now = Date.now();
-                // Prevent API spam: only scan if it's a new code OR 3 seconds have passed
-                if (text !== lastScannedCode || (now - lastScannedTime) > 3000) {
-                    lastScannedCode = text;
-                    lastScannedTime = now;
-                    handleResult(text);
-                }
+                height: { ideal: 480 },
+                advanced: [{ focusMode: "continuous" }]
             }
         });
+        
+        videoElement.srcObject = stream;
+        statusMsg.textContent = "Processing frames...";
+
+        // Begin the scanning loop once video is actually playing
+        videoElement.onplay = () => {
+            scanLoop();
+        };
+
     } catch (err) {
         console.error(err);
         statusMsg.textContent = "Error accessing camera.";
@@ -95,10 +70,62 @@ async function startScanner() {
 
 function stopScanner() {
     isScanning = false;
-    codeReader.reset();
     scanBtn.textContent = "Start Scanner";
     videoWrapper.classList.remove('active');
     statusMsg.textContent = "";
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        videoElement.srcObject = null;
+        stream = null;
+    }
+}
+
+async function scanLoop() {
+    if (!isScanning) return;
+
+    if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+        canvas.width = videoElement.videoWidth;
+        canvas.height = videoElement.videoHeight;
+        
+        // Draw the frame
+        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        
+        // Get raw pixel data
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // Perform grayscale & contrast thresholding manually for the user
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            // Standard luminance weighting to grayscale
+            const gray = (data[i] * 0.299) + (data[i + 1] * 0.587) + (data[i + 2] * 0.114);
+            // Boost contrast natively for the C++ engine!
+            const contrast = gray > 110 ? 255 : 0; 
+            data[i] = data[i+1] = data[i+2] = contrast;
+        }
+        
+        try {
+            // Pass the preprocessed black & white frame to the ZXing WebAssembly C++ Engine!
+            const results = await readBarcodesFromImageData(imageData, {
+                tryHarder: true, // We can afford this now because C++ WASM is lightning fast
+                formats: ["Aztec", "EAN-13", "EAN-8", "QRCode", "DataMatrix"]
+            });
+
+            if (results && results.length > 0) {
+                const text = results[0].text;
+                const now = Date.now();
+                if (text !== lastScannedCode || (now - lastScannedTime) > 3000) {
+                    lastScannedCode = text;
+                    lastScannedTime = now;
+                    handleResult(text);
+                }
+            }
+        } catch (e) {
+            // No barcode found this frame, completely ignore.
+        }
+    }
+    
+    // Throttle to 150ms to keep UI super smooth and not drain phone battery
+    setTimeout(scanLoop, 150);
 }
 
 async function handleResult(barcode) {
