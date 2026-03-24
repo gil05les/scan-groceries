@@ -5,9 +5,8 @@ const LOCAL_DB = {
     "24187": "Migros Karotten"
 };
 
-// Enable "Try Harder" mode for omnidirectional scanning and smaller barcodes
+// We remove TRY_HARDER because it paralyzes weak smartphone CPUs. Standard scanning is much faster.
 const hints = new Map();
-hints.set(DecodeHintType.TRY_HARDER, true);
 
 const formats = [
     BarcodeFormat.AZTEC,
@@ -23,6 +22,9 @@ const formats = [
 hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
 
 const codeReader = new BrowserMultiFormatReader(hints);
+// Speed up how often ZXing pulls a video frame from the camera
+codeReader.timeBetweenDecodingAttempts = 150; 
+
 const scanBtn = document.getElementById('scan-btn');
 const videoWrapper = document.getElementById('video-wrapper');
 const videoElement = document.getElementById('video-preview');
@@ -41,6 +43,7 @@ const detailsListEl = document.getElementById('product-details');
 let isScanning = false;
 let lastScannedCode = "";
 let lastScannedTime = 0;
+const API_CACHE = {}; // In-memory cache for instant subsequent scans!
 
 scanBtn.addEventListener('click', async () => {
     if (isScanning) {
@@ -60,7 +63,8 @@ async function startScanner() {
 
         const videoInputDevices = await BrowserMultiFormatReader.listVideoInputDevices();
         // Typically the back camera on mobile or default on desktop
-        const selectedDeviceId = videoInputDevices.length > 0 ? videoInputDevices[0].deviceId : undefined;
+        const backCamera = videoInputDevices.find(device => device.label.toLowerCase().includes('back'));
+        const selectedDeviceId = backCamera ? backCamera.deviceId : (videoInputDevices.length > 0 ? videoInputDevices[0].deviceId : undefined);
 
         codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, (result, err) => {
             if (result) {
@@ -98,19 +102,27 @@ async function handleResult(barcode) {
         const valStr = barcode.substring(7, 12);
         const price = (parseInt(valStr, 10) / 100).toFixed(2);
         const name = LOCAL_DB[itemCode] || `Local Item ${itemCode}`;
-
+        
         displayLocalResult(name, price);
         return;
     }
 
-    // Call OpenFoodFacts API directly from the browser!
+    // Check Memory Cache!
+    if (API_CACHE[barcode]) {
+        displayApiResult(API_CACHE[barcode]);
+        return;
+    }
+
+    // Call OpenFoodFacts API directly with targeted ?fields to reduce payload size from Megabytes to Kilobytes!
     displayLoading();
     try {
-        const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}`);
+        const fields = 'product_name,brands,nutriscore_grade,ecoscore_grade,quantity,image_front_url,categories,ingredients_text,allergens';
+        const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=${fields}`);
         if (!res.ok) throw new Error("Product API rate limited or unavailable.");
-
+        
         const data = await res.json();
         if (data.status === 1 && data.product) {
+            API_CACHE[barcode] = data.product; // Save to cache
             displayApiResult(data.product);
         } else {
             throw new Error("Product not found in international database.");
